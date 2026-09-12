@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Buy or Wait</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>💰 Buy or Wait</h1>
+
+        <p class="subtitle">
+            AI-powered financial decision assistant
+        </p>
+
+        <div class="card">
+
+            <label for="message">
+                Tell me about your money and purchase
+            </label>
+
+            <textarea
+                id="message"
+                placeholder="Example: Na account lo 120000 undi. 80000 laptop konali. September 15th rent 25000 pay cheyyali..."
+            ></textarea>
+
+            <button onclick="checkDecision()">
+                Check Buy or Wait
+            </button>
+
+        </div>
+
+        <div id="loading" class="loading">
+            Checking your financial situation...
+        </div>
+
+        <div id="result" class="result">
+
+            <h2>Decision</h2>
+
+            <div id="status"></div>
+
+            <div class="result-section">
+                <h3>Recommended Payment</h3>
+                <p id="paymentMethod"></p>
+            </div>
+
+            <div class="result-section">
+                <h3>Explanation</h3>
+                <p id="explanation"></p>
+            </div>
+
+            <div class="result-section">
+                <h3>Payment Plan</h3>
+                <div id="paymentPlan"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+</html>

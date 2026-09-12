@@ -1,12 +1,26 @@
 from ai_parser import router, extract_financial_data
+
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+
 from pydantic import BaseModel, Field
+
 from datetime import date
 import calendar
 import json
 
+
+# =========================================================
+# APP
+# =========================================================
+
 app = FastAPI()
+
+
+# =========================================================
+# CORS
+# =========================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,14 +30,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# =========================================================
+# AI ROUTER
+# =========================================================
+
 app.include_router(router, prefix="/ai")
 
 
-# -----------------------------
+# =========================================================
 # FINANCIAL EVENT
-# -----------------------------
+# =========================================================
 
 class FinancialEvent(BaseModel):
+
     date: str
     amount: float
     description: str
@@ -31,11 +51,12 @@ class FinancialEvent(BaseModel):
     essential: bool = False
 
 
-# -----------------------------
+# =========================================================
 # RECURRING EXPENSE
-# -----------------------------
+# =========================================================
 
 class RecurringExpense(BaseModel):
+
     name: str
     amount: float
     next_due_date: str
@@ -43,22 +64,24 @@ class RecurringExpense(BaseModel):
     essential: bool = True
 
 
-# -----------------------------
+# =========================================================
 # PENDING PAYMENT
-# -----------------------------
+# =========================================================
 
 class PendingPayment(BaseModel):
+
     name: str
     amount: float
     due_date: str
     essential: bool = True
 
 
-# -----------------------------
+# =========================================================
 # PAYMENT OPTION
-# -----------------------------
+# =========================================================
 
 class PaymentOption(BaseModel):
+
     name: str
     first_payment: float
     installment_amount: float = 0
@@ -66,20 +89,21 @@ class PaymentOption(BaseModel):
     first_payment_date: str
 
 
-# -----------------------------
+# =========================================================
 # USER PREFERENCES
-# -----------------------------
+# =========================================================
 
 class UserPreferences(BaseModel):
+
     preferred_payment_method: str = "ANY"
     max_installments: int = 4
     avoid_debt: bool = True
     allow_discretionary_cuts: bool = True
 
 
-# -----------------------------
+# =========================================================
 # MAIN REQUEST
-# -----------------------------
+# =========================================================
 
 class AffordabilityRequest(BaseModel):
 
@@ -108,20 +132,42 @@ class AffordabilityRequest(BaseModel):
     )
 
 
-# -----------------------------
-# HOME
-# -----------------------------
+# =========================================================
+# AI DECISION REQUEST
+# =========================================================
+
+class AIDecisionRequest(BaseModel):
+
+    message: str
+
+    payment_options: list[PaymentOption] = []
+
+
+# =========================================================
+# FRONTEND
+# =========================================================
 
 @app.get("/")
 def home():
-    return {
-        "message": "Buy or Wait AI Agent is running!"
-    }
+
+    return FileResponse("index.html")
 
 
-# -----------------------------
+@app.get("/style.css")
+def style():
+
+    return FileResponse("style.css")
+
+
+@app.get("/script.js")
+def script():
+
+    return FileResponse("script.js")
+
+
+# =========================================================
 # ADD MONTHS
-# -----------------------------
+# =========================================================
 
 def add_months(original_date, months):
 
@@ -129,6 +175,7 @@ def add_months(original_date, months):
     year = original_date.year
 
     while month > 12:
+
         month -= 12
         year += 1
 
@@ -137,12 +184,16 @@ def add_months(original_date, months):
         calendar.monthrange(year, month)[1]
     )
 
-    return date(year, month, day)
+    return date(
+        year,
+        month,
+        day
+    )
 
 
-# -----------------------------
+# =========================================================
 # BUILD FUTURE EVENTS
-# -----------------------------
+# =========================================================
 
 def build_future_events(request):
 
@@ -150,22 +201,38 @@ def build_future_events(request):
 
     events = []
 
-    # Normal events
+
+    # -----------------------------------------------------
+    # NORMAL EVENTS
+    # -----------------------------------------------------
+
     for event in request.events:
 
-        event_date = date.fromisoformat(event.date)
+        event_date = date.fromisoformat(
+            event.date
+        )
 
         if event_date >= today:
 
             events.append({
+
                 "date": event_date,
+
                 "amount": event.amount,
+
                 "description": event.description,
+
                 "type": event.type,
+
                 "essential": event.essential
+
             })
 
-    # Pending payments
+
+    # -----------------------------------------------------
+    # PENDING PAYMENTS
+    # -----------------------------------------------------
+
     for payment in request.pending_payments:
 
         payment_date = date.fromisoformat(
@@ -175,16 +242,27 @@ def build_future_events(request):
         if payment_date >= today:
 
             events.append({
+
                 "date": payment_date,
+
                 "amount": -payment.amount,
+
                 "description":
                     "Pending: " + payment.name,
-                "type": "PENDING_PAYMENT",
+
+                "type":
+                    "PENDING_PAYMENT",
+
                 "essential":
                     payment.essential
+
             })
 
-    # Recurring expenses
+
+    # -----------------------------------------------------
+    # RECURRING EXPENSES
+    # -----------------------------------------------------
+
     for expense in request.recurring_expenses:
 
         start_date = date.fromisoformat(
@@ -204,18 +282,26 @@ def build_future_events(request):
 
                 occurrence = start_date
 
+
             if occurrence >= today:
 
                 events.append({
+
                     "date": occurrence,
+
                     "amount": -expense.amount,
+
                     "description":
                         "Recurring: " + expense.name,
+
                     "type":
                         "RECURRING_EXPENSE",
+
                     "essential":
                         expense.essential
+
                 })
+
 
     events.sort(
         key=lambda x: x["date"]
@@ -224,9 +310,9 @@ def build_future_events(request):
     return events
 
 
-# -----------------------------
+# =========================================================
 # BUILD COMPLETE TIMELINE
-# -----------------------------
+# =========================================================
 
 def build_timeline(
     request,
@@ -235,11 +321,13 @@ def build_timeline(
 
     events = build_future_events(request)
 
+
     if payment_option:
 
         first_date = date.fromisoformat(
             payment_option.first_payment_date
         )
+
 
         for i in range(
             payment_option.number_of_installments
@@ -249,6 +337,7 @@ def build_timeline(
                 first_date,
                 i
             )
+
 
             if i == 0:
 
@@ -271,15 +360,24 @@ def build_timeline(
                     f"installment {i + 1}"
                 )
 
+
             if payment_date >= date.today():
 
                 events.append({
+
                     "date": payment_date,
+
                     "amount": -amount,
+
                     "description": description,
-                    "type": "PURCHASE_PAYMENT",
+
+                    "type":
+                        "PURCHASE_PAYMENT",
+
                     "essential": False
+
                 })
+
 
     events.sort(
         key=lambda x: x["date"]
@@ -288,9 +386,9 @@ def build_timeline(
     return events
 
 
-# -----------------------------
+# =========================================================
 # EVALUATE PAYMENT OPTION
-# -----------------------------
+# =========================================================
 
 def evaluate_payment_option(
     request,
@@ -305,49 +403,68 @@ def evaluate_payment_option(
     )
 
     lowest_balance = balance
+
     lowest_date = None
+
 
     for event in timeline:
 
         balance += event["amount"]
 
+
         if balance < lowest_balance:
 
             lowest_balance = balance
+
             lowest_date = event["date"]
+
 
         if balance < request.minimum_balance:
 
             return {
+
                 "safe": False,
+
                 "lowest_balance":
                     lowest_balance,
+
                 "lowest_balance_date":
                     str(lowest_date)
                     if lowest_date
                     else None,
-                "timeline": timeline
+
+                "timeline":
+                    timeline
+
             }
 
+
     return {
+
         "safe": True,
+
         "lowest_balance":
             lowest_balance,
+
         "lowest_balance_date":
             str(lowest_date)
             if lowest_date
             else None,
-        "timeline": timeline
+
+        "timeline":
+            timeline
+
     }
 
 
-# -----------------------------
+# =========================================================
 # SPENDING CHANGES
-# -----------------------------
+# =========================================================
 
 def calculate_spending_changes(request):
 
     discretionary_total = 0
+
 
     for event in request.events:
 
@@ -360,64 +477,90 @@ def calculate_spending_changes(request):
                 event.amount
             )
 
+
     if discretionary_total == 0:
 
         return {
+
             "needed": False,
+
             "amount": 0,
+
             "message":
                 "No discretionary spending cuts identified."
+
         }
+
 
     safe_today = (
         request.current_balance
         - request.minimum_balance
     )
 
+
     required = max(
         0,
         request.purchase_amount - safe_today
     )
+
 
     cut = min(
         discretionary_total,
         required
     )
 
+
     if cut <= 0:
 
         return {
+
             "needed": False,
+
             "amount": 0,
+
             "message":
                 "No spending reduction is currently required."
+
         }
+
 
     if not request.user_preferences.allow_discretionary_cuts:
 
         return {
+
             "needed": False,
+
             "amount": 0,
+
             "message":
                 "User does not allow discretionary spending cuts."
+
         }
 
+
     return {
+
         "needed": True,
+
         "amount": cut,
+
         "message":
             f"Reduce discretionary spending by ₹{cut:.2f}."
+
     }
 
 
-# -----------------------------
-# MAIN CHECK
-# -----------------------------
+# =========================================================
+# MAIN AFFORDABILITY CHECK
+# =========================================================
 
 @app.post("/check")
-def check_affordability(request):
+def check_affordability(
+    request: AffordabilityRequest
+):
 
     today = date.today()
+
 
     safe_today = max(
         0,
@@ -425,11 +568,13 @@ def check_affordability(request):
         - request.minimum_balance
     )
 
+
     preferences = request.user_preferences
 
-    # --------------------------------
+
+    # -----------------------------------------------------
     # FULL PAYMENT
-    # --------------------------------
+    # -----------------------------------------------------
 
     full_payment = PaymentOption(
 
@@ -444,22 +589,31 @@ def check_affordability(request):
 
         first_payment_date=
             str(today)
+
     )
+
 
     full_result = evaluate_payment_option(
         request,
         full_payment
     )
 
-    # User prefers full payment
+
+    # -----------------------------------------------------
+    # USER PREFERS FULL PAYMENT
+    # -----------------------------------------------------
+
     if (
         full_result["safe"]
-        and preferences.preferred_payment_method
+        and
+        preferences.preferred_payment_method
         == "PAY_IN_FULL"
     ):
 
         return {
-            "amount_safe_to_pay": safe_today,
+
+            "amount_safe_to_pay":
+                safe_today,
 
             "affordability_status":
                 "AFFORDABLE_NOW",
@@ -468,11 +622,17 @@ def check_affordability(request):
                 "PAY_IN_FULL",
 
             "payment_plan": [
+
                 {
-                    "date": str(today),
+
+                    "date":
+                        str(today),
+
                     "amount":
                         request.purchase_amount
+
                 }
+
             ],
 
             "earliest_date_for_full_payment":
@@ -483,20 +643,25 @@ def check_affordability(request):
 
             "decision_explanation":
                 "Full payment is safe and matches your preference."
+
         }
 
-    # --------------------------------
+
+    # -----------------------------------------------------
     # FULL PAYMENT SAFE
-    # --------------------------------
+    # -----------------------------------------------------
 
     if (
         full_result["safe"]
-        and preferences.preferred_payment_method
+        and
+        preferences.preferred_payment_method
         == "ANY"
     ):
 
         return {
-            "amount_safe_to_pay": safe_today,
+
+            "amount_safe_to_pay":
+                safe_today,
 
             "affordability_status":
                 "AFFORDABLE_NOW",
@@ -505,11 +670,17 @@ def check_affordability(request):
                 "PAY_IN_FULL",
 
             "payment_plan": [
+
                 {
-                    "date": str(today),
+
+                    "date":
+                        str(today),
+
                     "amount":
                         request.purchase_amount
+
                 }
+
             ],
 
             "earliest_date_for_full_payment":
@@ -520,47 +691,63 @@ def check_affordability(request):
 
             "decision_explanation":
                 "You can safely pay the full amount today."
+
         }
 
-    # --------------------------------
+
+    # -----------------------------------------------------
     # INSTALLMENTS
-    # --------------------------------
+    # -----------------------------------------------------
 
     safe_options = []
 
+
     for option in request.payment_options:
+
 
         if (
             option.number_of_installments
             > preferences.max_installments
         ):
+
             continue
 
+
         if preferences.avoid_debt:
+
             continue
+
 
         result = evaluate_payment_option(
             request,
             option
         )
 
+
         if result["safe"]:
 
             safe_options.append({
-                "name": option.name,
+
+                "name":
+                    option.name,
+
                 "payment_plan":
                     result["timeline"],
+
                 "lowest_balance":
                     result["lowest_balance"]
+
             })
 
-    # --------------------------------
+
+    # -----------------------------------------------------
     # SAFE INSTALLMENT
-    # --------------------------------
+    # -----------------------------------------------------
 
     if safe_options:
 
         best = safe_options[0]
+
 
         return {
 
@@ -589,11 +776,13 @@ def check_affordability(request):
                     f"{best['name']} is affordable "
                     "while protecting your minimum balance."
                 )
+
         }
 
-    # --------------------------------
+
+    # -----------------------------------------------------
     # NOT AFFORDABLE
-    # --------------------------------
+    # -----------------------------------------------------
 
     return {
 
@@ -619,71 +808,192 @@ def check_affordability(request):
                 "The purchase is not safely affordable "
                 "with the current cash-flow forecast."
             )
+
     }
 
-# -----------------------------
+
+# =========================================================
 # AI DECISION
-# -----------------------------
-
-class AIDecisionRequest(BaseModel):
-    message: str
-    payment_options: list[PaymentOption] = []
-
+# =========================================================
 
 @app.post("/ai/decision")
-def ai_decision(request: AIDecisionRequest):
+def ai_decision(
+    request: AIDecisionRequest
+):
 
-    extracted_text = extract_financial_data(request.message)
-    extracted = json.loads(extracted_text)
+    # -----------------------------------------------------
+    # EXTRACT INFORMATION USING AI
+    # -----------------------------------------------------
 
-    current_balance = extracted.get("current_balance")
-    purchase_amount = extracted.get("purchase_amount")
+    extracted_text = extract_financial_data(
+        request.message
+    )
+
+
+    try:
+
+        extracted = json.loads(
+            extracted_text
+        )
+
+    except json.JSONDecodeError:
+
+        return {
+
+            "status": "ERROR",
+
+            "message":
+                "AI returned invalid JSON.",
+
+            "raw_extracted_data":
+                extracted_text
+
+        }
+
+
+    current_balance = extracted.get(
+        "current_balance"
+    )
+
+    purchase_amount = extracted.get(
+        "purchase_amount"
+    )
+
+
+    # -----------------------------------------------------
+    # BALANCE CHECK
+    # -----------------------------------------------------
 
     if current_balance is None:
+
         return {
+
             "status": "ERROR",
-            "message": "Current balance could not be identified.",
-            "extracted_data": extracted
+
+            "message":
+                "Current balance could not be identified.",
+
+            "extracted_data":
+                extracted
+
         }
 
+
+    # -----------------------------------------------------
+    # PURCHASE CHECK
+    # -----------------------------------------------------
+
     if purchase_amount is None:
+
         return {
+
             "status": "ERROR",
-            "message": "Purchase amount could not be identified.",
-            "extracted_data": extracted
+
+            "message":
+                "Purchase amount could not be identified.",
+
+            "extracted_data":
+                extracted
+
         }
+
+
+    # -----------------------------------------------------
+    # CONVERT AI EVENTS
+    # -----------------------------------------------------
 
     events = []
 
-    for event in extracted.get("events", []):
+
+    for event in extracted.get(
+        "events",
+        []
+    ):
+
         events.append(
+
             FinancialEvent(
+
                 date=event["date"],
+
                 amount=event["amount"],
-                description=event["description"],
+
+                description=
+                    event["description"],
+
                 type=event["type"],
-                essential=event["essential"]
+
+                essential=
+                    event["essential"]
+
             )
+
         )
+
+
+    # -----------------------------------------------------
+    # CREATE AFFORDABILITY REQUEST
+    # -----------------------------------------------------
 
     affordability_request = AffordabilityRequest(
-        current_balance=current_balance,
-        purchase_amount=purchase_amount,
-        minimum_balance=20000,
-        events=events,
-        payment_options=request.payment_options,
-        user_preferences=UserPreferences(
-            preferred_payment_method="INSTALLMENTS",
-            max_installments=4,
-            avoid_debt=False,
-            allow_discretionary_cuts=True
-        )
+
+        current_balance=
+            current_balance,
+
+        purchase_amount=
+            purchase_amount,
+
+        minimum_balance=
+            20000,
+
+        events=
+            events,
+
+        payment_options=
+            request.payment_options,
+
+        user_preferences=
+            UserPreferences(
+
+                preferred_payment_method=
+                    "INSTALLMENTS",
+
+                max_installments=
+                    4,
+
+                avoid_debt=
+                    False,
+
+                allow_discretionary_cuts=
+                    True
+
+            )
+
     )
 
-    result = check_affordability(affordability_request)
+
+    # -----------------------------------------------------
+    # RUN AFFORDABILITY ENGINE
+    # -----------------------------------------------------
+
+    result = check_affordability(
+        affordability_request
+    )
+
+
+    # -----------------------------------------------------
+    # FINAL RESPONSE
+    # -----------------------------------------------------
 
     return {
-        "user_message": request.message,
-        "extracted_data": extracted,
-        "affordability_result": result
+
+        "user_message":
+            request.message,
+
+        "extracted_data":
+            extracted,
+
+        "affordability_result":
+            result
+
     }
